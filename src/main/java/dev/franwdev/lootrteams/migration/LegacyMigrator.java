@@ -85,8 +85,13 @@ public class LegacyMigrator {
         try {
             root = NbtIo.readCompressed(file);
         } catch (IOException e) {
-            LOG.warn("[LootrTeams] Could not read {}", file.getName());
-            return false;
+            // Fallback to uncompressed just in case
+            try {
+                root = NbtIo.read(file);
+            } catch (IOException ex) {
+                LOG.warn("[LootrTeams] Could not read {} (compressed or uncompressed)", file.getName());
+                return false;
+            }
         }
 
         boolean modified = migrateNbt(root);
