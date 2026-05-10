@@ -1,7 +1,7 @@
 package dev.franwdev.lootrteams.team;
 
-import dev.ftb.mods.teams.api.FTBTeamsAPI;
-import dev.ftb.mods.teams.api.Team;
+import dev.ftb.mods.ftbteams.api.FTBTeamsAPI;
+import dev.ftb.mods.ftbteams.api.Team;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.fml.ModList;
 
@@ -22,7 +22,7 @@ public class FTBTeamsCompat {
      */
     public static UUID getTeamId(ServerPlayer player) {
         try {
-            Optional<Team> team = FTBTeamsAPI.api().getPlayerTeam(player);
+            Optional<Team> team = FTBTeamsAPI.api().getManager().getTeamForPlayer(player);
             return team.map(Team::getId).orElse(null);
         } catch (Throwable e) {
             return null;

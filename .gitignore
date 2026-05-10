@@ -22,3 +22,23 @@ gradle-app.setting
 /plan
 /Lootr
 AGENTS.md
+/run-gametest
+/bin
+/logs
+# Forge/Minecraft run directories
+/run/
+/run-gametest/
+/run-client/
+/run-server/
+/run-data/
+
+# Logs and crash reports
+/logs/
+/crash-reports/
+
+# Mixin generated files
+.mixin.out/
+
+# Gemini/AI Agent metadata (si no estaba ya)
+.gemini/
+

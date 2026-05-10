@@ -1,0 +1,10 @@
+{
+    size: [15, 15, 15],
+    data: [
+        {pos: [0, 0, 0], state: "minecraft:air"}
+    ],
+    entities: [],
+    palette: [
+        "minecraft:air"
+    ]
+}

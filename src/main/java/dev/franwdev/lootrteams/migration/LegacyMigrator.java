@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -31,11 +33,11 @@ public class LegacyMigrator {
             LOG.info("[LootrTeams] Migration already done, skipping.");
             return;
         }
-        
+
         LOG.info("[LootrTeams] Starting legacy migration...");
         int migratedCount = migrate(server);
         LOG.info("[LootrTeams] Migration complete. Processed {} chest files.", migratedCount);
-        
+
         setMigrated(server);
     }
 
@@ -68,8 +70,8 @@ public class LegacyMigrator {
         int count = 0;
         try (Stream<Path> paths = Files.walk(lootrDataPath)) {
             for (Path path : paths.filter(Files::isRegularFile)
-                                  .filter(p -> p.toString().endsWith(".dat"))
-                                  .toList()) {
+                    .filter(p -> p.toString().endsWith(".dat"))
+                    .toList()) {
                 if (migrateFile(path.toFile())) {
                     count++;
                 }
@@ -104,20 +106,22 @@ public class LegacyMigrator {
                 LOG.error("[LootrTeams] Could not write migrated file {}", file.getName(), e);
             }
         }
-        
+
         return false;
     }
 
     /**
-     * Extracts NBT manipulation logic for unit testing without a server environment.
+     * Extracts NBT manipulation logic for unit testing without a server
+     * environment.
+     * 
      * @param root The root NBT tag of the ChestData file.
      * @return true if the NBT was modified, false otherwise.
      */
-    static boolean migrateNbt(CompoundTag root) {
+    public static boolean migrateNbt(CompoundTag root) {
         if (!root.contains("data", Tag.TAG_COMPOUND)) {
             return false;
         }
-        
+
         CompoundTag data = root.getCompound("data");
         if (!data.contains("inventories", Tag.TAG_LIST)) {
             return false;
@@ -127,6 +131,18 @@ public class LegacyMigrator {
         boolean modified = false;
         ListTag toAdd = new ListTag();
 
+        Set<UUID> existingUuids = new HashSet<>();
+        Set<UUID> derivedGhosts = new HashSet<>();
+
+        for (int i = 0; i < inventories.size(); i++) {
+            CompoundTag entry = inventories.getCompound(i);
+            if (entry.hasUUID("uuid")) {
+                UUID u = entry.getUUID("uuid");
+                existingUuids.add(u);
+                derivedGhosts.add(TeamIdentifier.toGhostTeamId(u));
+            }
+        }
+
         for (int i = 0; i < inventories.size(); i++) {
             CompoundTag entry = inventories.getCompound(i);
             if (!entry.hasUUID("uuid")) {
@@ -134,23 +150,20 @@ public class LegacyMigrator {
             }
 
             UUID playerUUID = entry.getUUID("uuid");
-            UUID ghostTeamUUID = TeamIdentifier.toGhostTeamId(playerUUID);
 
-            // Check if an entry with this ghostTeamUUID already exists
-            boolean alreadyExists = false;
-            for (int j = 0; j < inventories.size(); j++) {
-                CompoundTag other = inventories.getCompound(j);
-                if (other.hasUUID("uuid") && other.getUUID("uuid").equals(ghostTeamUUID)) {
-                    alreadyExists = true;
-                    break;
-                }
+            // If this UUID is itself a ghost of another UUID in the file, skip it.
+            if (derivedGhosts.contains(playerUUID)) {
+                continue;
             }
 
-            if (!alreadyExists) {
+            UUID ghostTeamUUID = TeamIdentifier.toGhostTeamId(playerUUID);
+
+            if (!existingUuids.contains(ghostTeamUUID)) {
                 // Clone the original entry and change the UUID key
                 CompoundTag newEntry = entry.copy();
                 newEntry.putUUID("uuid", ghostTeamUUID);
                 toAdd.add(newEntry);
+                existingUuids.add(ghostTeamUUID); // Prevent duplicates if same player exists twice
                 modified = true;
             }
         }

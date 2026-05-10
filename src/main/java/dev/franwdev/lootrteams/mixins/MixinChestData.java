@@ -1,5 +1,6 @@
 package dev.franwdev.lootrteams.mixins;
 
+import dev.franwdev.lootrteams.team.TeamIdentifier;
 import dev.franwdev.lootrteams.team.TeamLootrManager;
 import net.minecraft.server.level.ServerPlayer;
 import noobanidus.mods.lootr.data.ChestData;
@@ -37,7 +38,7 @@ public abstract class MixinChestData {
         // If an admin runs `/lootr clear <player>`, Lootr removes the player's UUID from the map.
         // If they are solo (teamId == ghostId), they would still see their old chest because ghostId was left behind.
         // We detect this desync and clear the ghost entry so they get fresh loot.
-        UUID ghostId = dev.franwdev.lootrteams.team.TeamIdentifier.toGhostTeamId(player.getUUID());
+        UUID ghostId = TeamIdentifier.toGhostTeamId(player.getUUID());
         if (teamId.equals(ghostId) && !inventories.containsKey(player.getUUID()) && inventories.containsKey(ghostId)) {
             inventories.remove(ghostId);
         }
