@@ -4,7 +4,8 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "lootrteams.refmap.json",
   "mixins": [
-    "MixinChestData"
+    "MixinChestData",
+    "AccessorChestData"
   ],
   "client": [],
   "injectors": {

@@ -27,7 +27,7 @@ public class ServerEventHandler {
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
         if (TeamLootrManager.INSTANCE != null) {
-            TeamLootrManager.INSTANCE.getStorageManager().clear();
+            TeamLootrManager.INSTANCE.shutdown();
         }
     }
 }

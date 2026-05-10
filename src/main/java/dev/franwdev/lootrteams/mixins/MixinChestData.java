@@ -61,6 +61,11 @@ public abstract class MixinChestData {
         TeamLootrManager.INSTANCE.getStorageManager()
             .onInventoryCreated(teamId, player.getUUID(), (SpecialChestInventory) value);
             
-        return map.put(teamId, (SpecialChestInventory) value);
+        Object result = map.put(teamId, (SpecialChestInventory) value);
+        
+        TeamLootrManager.INSTANCE.synchronizer
+            .scheduleSyncToPlayers((ChestData)(Object)this, teamId);
+            
+        return result;
     }
 }
