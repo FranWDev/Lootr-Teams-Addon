@@ -1,0 +1,55 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '6.0.+'
+    id 'org.spongepowered.mixin' version '0.7.+'
+}
+
+apply plugin: 'java'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    runs {
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                lootrteams { source sourceSets.main }
+            }
+        }
+    }
+}
+
+repositories {
+    maven { url 'https://maven.minecraftforge.net' }
+    maven { url "https://www.cursemaven.com" }
+    maven { url 'https://maven.ftb.team/releases' }
+    maven { url 'https://maven.saps.dev/minecraft' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Lootr: required dependency (compileOnly)
+    compileOnly fg.deobf("curse.maven:lootr-361276:7263076")
+
+    // FTB Teams: optional dependency (compileOnly)
+    compileOnly fg.deobf("curse.maven:ftb-teams-forge-404468:7499810")
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title'   : mod_id,
+            'Implementation-Title'  : mod_id,
+            'Implementation-Version': version,
+            'MixinConfigs'          : 'lootrteams.mixins.json'
+        ])
+    }
+}
+
+mixin {
+    add sourceSets.main, 'lootrteams.refmap.json'
+    config 'lootrteams.mixins.json'
+}
