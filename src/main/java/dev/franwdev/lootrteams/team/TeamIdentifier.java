@@ -3,8 +3,11 @@ package dev.franwdev.lootrteams.team;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
+import java.util.function.Function;
 
 public class TeamIdentifier {
+
+    public static Function<UUID, UUID> TEST_STUB = null;
 
     /**
      * Returns the team UUID of the given player.
@@ -12,6 +15,10 @@ public class TeamIdentifier {
      * it returns a ghost team UUID derived deterministically from the player's UUID.
      */
     public UUID getTeamId(ServerPlayer player) {
+        if (TEST_STUB != null) {
+            return TEST_STUB.apply(player.getUUID());
+        }
+
         if (FTBTeamsCompat.isLoaded()) {
             UUID teamId = FTBTeamsCompat.getTeamId(player);
             if (teamId != null) {

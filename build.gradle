@@ -18,6 +18,24 @@ minecraft {
                 lootrteams { source sourceSets.main }
             }
         }
+
+        gameTestServer {
+            workingDirectory project.file('run-gametest')
+            property 'forge.logging.console.level', 'debug'
+            property 'forge.enabledGameTestNamespaces', 'lootrteams'
+            property 'lootrteams.testMode', 'true'
+            mods {
+                lootrteams { source sourceSets.main }
+                lootrteams_test { source sourceSets.test }
+            }
+        }
+    }
+}
+
+sourceSets {
+    test {
+        java { srcDir 'src/test/java' }
+        resources { srcDir 'src/test/resources' }
     }
 }
 
