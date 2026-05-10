@@ -6,6 +6,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,5 +69,42 @@ class LegacyMigratorNbtTest {
 
         assertFalse(modified, "Should not modify NBT if ghost team already exists");
         assertEquals(2, nbt.getCompound("data").getList("inventories", 10).size(), "Entry count should remain 2");
+    }
+
+    @Test
+    void migrationPreservesOriginalEntries() {
+        UUID playerA = UUID.randomUUID();
+        UUID playerB = UUID.randomUUID();
+        CompoundTag nbt = buildChestNbt(playerA, playerB);
+
+        boolean modified = LegacyMigrator.migrateNbt(nbt);
+        assertTrue(modified, "NBT must be modified during migration");
+
+        ListTag inventories = nbt.getCompound("data").getList("inventories", 10);
+        // Original: 2 players -> Migrated: 2 originals + 2 ghosts = 4 entries
+        assertEquals(4, inventories.size(), "Inventory size should double");
+
+        Set<UUID> uuids = new HashSet<>();
+        for (int i = 0; i < inventories.size(); i++) {
+            uuids.add(inventories.getCompound(i).getUUID("uuid"));
+        }
+        assertTrue(uuids.contains(playerA), "Original playerA must remain");
+        assertTrue(uuids.contains(playerB), "Original playerB must remain");
+        assertTrue(uuids.contains(TeamIdentifier.toGhostTeamId(playerA)), "Ghost team for A must exist");
+        assertTrue(uuids.contains(TeamIdentifier.toGhostTeamId(playerB)), "Ghost team for B must exist");
+    }
+
+    @Test
+    void migrationIsIdempotent() {
+        UUID playerA = UUID.randomUUID();
+        CompoundTag nbt = buildChestNbt(playerA);
+
+        LegacyMigrator.migrateNbt(nbt);  // First pass
+        int sizeAfterFirst = nbt.getCompound("data").getList("inventories", 10).size();
+
+        LegacyMigrator.migrateNbt(nbt);  // Second pass
+        int sizeAfterSecond = nbt.getCompound("data").getList("inventories", 10).size();
+
+        assertEquals(sizeAfterFirst, sizeAfterSecond, "Migration must be idempotent");
     }
 }

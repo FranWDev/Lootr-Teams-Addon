@@ -64,4 +64,44 @@ public class TestHelpers {
     public static java.util.Map<UUID, SpecialChestInventory> getInventoryMap(ChestData data) {
         return ((AccessorChestData) data).lootrteams$getInventories();
     }
+
+    public static java.util.List<BlockPos> getAllChestPositions(GameTestHelper helper) {
+        java.util.List<BlockPos> positions = new java.util.ArrayList<>();
+        helper.forEveryBlockInStructure(pos -> {
+            var be = helper.getLevel().getBlockEntity(helper.absolutePos(pos));
+            if (be instanceof noobanidus.mods.lootr.api.blockentity.ILootBlockEntity) {
+                positions.add(pos.immutable());
+            }
+        });
+        return positions;
+    }
+
+    public static SpecialChestInventory openChestAt(GameTestHelper helper, ServerPlayer player, BlockPos pos) {
+        var level = (net.minecraft.server.level.ServerLevel) helper.getLevel();
+        BlockPos worldPos = helper.absolutePos(pos);
+        var be = level.getBlockEntity(worldPos);
+        if (be instanceof noobanidus.mods.lootr.api.blockentity.ILootBlockEntity lootrBE) {
+            UUID chestUUID = lootrBE.getInfoUUID();
+            return (SpecialChestInventory) DataStorage.getInventory(
+                level, chestUUID, worldPos, player,
+                (net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity) be,
+                lootrBE.getLootFiller()
+            );
+        }
+        return null;
+    }
+
+    public static SpecialChestInventory getInventoryAt(GameTestHelper helper, BlockPos pos, UUID teamId) {
+        var level = (net.minecraft.server.level.ServerLevel) helper.getLevel();
+        BlockPos worldPos = helper.absolutePos(pos);
+        var be = level.getBlockEntity(worldPos);
+        if (be instanceof noobanidus.mods.lootr.api.blockentity.ILootBlockEntity lootrBE) {
+            UUID chestUUID = lootrBE.getInfoUUID();
+            ChestData data = DataStorage.getContainerData(level, worldPos, chestUUID);
+            if (data != null) {
+                return getInventoryMap(data).get(teamId);
+            }
+        }
+        return null;
+    }
 }

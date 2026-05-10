@@ -32,6 +32,16 @@ public abstract class MixinChestData {
     private void teamGetInventory(ServerPlayer player, CallbackInfoReturnable<SpecialChestInventory> cir) {
         if (TeamLootrManager.INSTANCE == null) return;
         UUID teamId = TeamLootrManager.INSTANCE.getTeamId(player);
+
+        // LOOTR CLEAR COMPATIBILITY:
+        // If an admin runs `/lootr clear <player>`, Lootr removes the player's UUID from the map.
+        // If they are solo (teamId == ghostId), they would still see their old chest because ghostId was left behind.
+        // We detect this desync and clear the ghost entry so they get fresh loot.
+        UUID ghostId = dev.franwdev.lootrteams.team.TeamIdentifier.toGhostTeamId(player.getUUID());
+        if (teamId.equals(ghostId) && !inventories.containsKey(player.getUUID()) && inventories.containsKey(ghostId)) {
+            inventories.remove(ghostId);
+        }
+
         cir.setReturnValue(inventories.get(teamId));
     }
 
