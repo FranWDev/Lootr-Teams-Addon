@@ -18,6 +18,8 @@ import dev.franwdev.lootrteams.team.TeamStorageManager;
 
 import noobanidus.mods.lootr.data.ChestData;
 import noobanidus.mods.lootr.data.SpecialChestInventory;
+import noobanidus.mods.lootr.api.blockentity.ILootBlockEntity;
+import dev.franwdev.lootrteams.util.LootrTeamsServerUtil;
 
 @GameTestHolder(LootrTeams.MODID)
 @PrefixGameTestTemplate(false)
@@ -403,6 +405,39 @@ public class LootrTeamsGameTests {
             var secondInv = TestHelpers.openChest(helper, player);
             helper.assertTrue(secondInv != null, "Should get new inventory after clear");
 
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void teamMembersSeeOpenedTexture(GameTestHelper helper) {
+        TeamTestStub.init();
+        TestHelpers.reset();
+        TestHelpers.setupChest(helper, TestHelpers.CHEST_POS);
+        UUID teamId = UUID.nameUUIDFromBytes("texture_team".getBytes());
+        UUID playerAId = UUID.nameUUIDFromBytes("texture_player_a".getBytes());
+        UUID playerBId = UUID.nameUUIDFromBytes("texture_player_b".getBytes());
+
+        TeamTestStub.setTeam(playerAId, teamId);
+        TeamTestStub.setTeam(playerBId, teamId);
+
+        ServerPlayer playerA = TestHelpers.makePlayer(helper, playerAId, "PlayerA");
+        ServerPlayer playerB = TestHelpers.makePlayer(helper, playerBId, "PlayerB");
+
+        helper.runAfterDelay(1, () -> {
+            // Player A opens the chest
+            TestHelpers.openChest(helper, playerA);
+            
+            // Simulate the addOpener/sync that happens in real gameplay
+            ILootBlockEntity tile = (ILootBlockEntity) helper.getBlockEntity(TestHelpers.CHEST_POS);
+            LootrTeamsServerUtil.refreshOpeners(tile);
+            
+            java.util.Set<UUID> openers = tile.getOpeners();
+            
+            helper.assertTrue(openers.contains(playerAId), "PlayerA should be in openers set");
+            helper.assertTrue(openers.contains(playerBId), "PlayerB should be in openers set");
+            helper.assertTrue(openers.contains(teamId), "TeamId should be in openers set");
+            
             helper.succeed();
         });
     }

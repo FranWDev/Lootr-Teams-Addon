@@ -6,7 +6,9 @@
   "mixins": [
     "MixinChestData",
     "AccessorChestData",
-    "AccessorSpecialChestInventory"
+    "AccessorSpecialChestInventory",
+    "MixinLootBlockEntity",
+    "MixinChestUtil"
   ],
   "client": [],
   "injectors": {

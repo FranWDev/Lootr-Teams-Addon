@@ -1,6 +1,7 @@
 package dev.franwdev.lootrteams.mixins;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,11 +39,32 @@ public abstract class MixinChestData {
         SpecialChestInventory teamInv = inventories.get(teamId);
 
         if (teamInv == null) {
+            SpecialChestInventory existingInv = null;
             UUID ghostId = TeamIdentifier.toGhostTeamId(player.getUUID());
 
-            // Check if they have a solo inventory already (either from ghost or previous
-            // vanilla)
-            SpecialChestInventory existingInv = inventories.get(ghostId);
+            // Check if the current player's ghost ID has an inventory
+            existingInv = inventories.get(ghostId);
+
+            // If it's a real team and the current player didn't have one, check other
+            // members
+            if (existingInv == null && !teamId.equals(ghostId)) {
+                Set<UUID> members = TeamLootrManager.INSTANCE.getStorageManager().getPlayersInTeam(teamId);
+                for (UUID memberId : members) {
+                    if (memberId.equals(player.getUUID()))
+                        continue;
+                    UUID memberGhostId = TeamIdentifier.toGhostTeamId(memberId);
+                    existingInv = inventories.get(memberGhostId);
+                    if (existingInv != null) {
+                        if (TeamLootrConfig.DEBUG_MODE) {
+                            LootrTeams.LOG.info("[LootrTeams] Team {} inherits loot from ghost entry of player {}",
+                                    teamId, memberId);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Fallback for vanilla migration
             if (existingInv == null && teamId.equals(ghostId)) {
                 existingInv = inventories.get(player.getUUID());
                 if (existingInv != null) {
@@ -50,12 +72,18 @@ public abstract class MixinChestData {
                         LootrTeams.LOG.info("[LootrTeams] Player {} inherits loot from playerUUID entry for ghost team",
                                 player.getName().getString());
                     }
-                    inventories.put(ghostId, existingInv);
-                    ((ChestData) (Object) this).setDirty();
                 }
             }
 
             if (existingInv != null) {
+                // Promote to the current teamId (works for both ghost promoting to real team,
+                // and playerUUID promoting to ghost)
+                inventories.put(teamId, existingInv);
+                ((ChestData) (Object) this).setDirty();
+
+                // Notify the storage manager for future synchronization
+                TeamLootrManager.INSTANCE.getStorageManager().onInventoryCreated(teamId, player.getUUID(), existingInv);
+
                 cir.setReturnValue(existingInv);
                 return;
             }
@@ -114,7 +142,8 @@ public abstract class MixinChestData {
         UUID teamId = TeamLootrManager.INSTANCE.getTeamId(playerId);
 
         if (TeamLootrConfig.DEBUG_MODE) {
-            LootrTeams.LOG.info("[LootrTeams] Creating inventory for teamId {} (triggered by player {})", teamId, playerId);
+            LootrTeams.LOG.info("[LootrTeams] Creating inventory for teamId {} (triggered by player {})", teamId,
+                    playerId);
         }
 
         // Notify the storage manager for future synchronization
