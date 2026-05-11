@@ -1,16 +1,5 @@
 package dev.franwdev.lootrteams.migration;
 
-import dev.franwdev.lootrteams.LootrTeams;
-import dev.franwdev.lootrteams.team.TeamIdentifier;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtIo;
-import net.minecraft.nbt.Tag;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.storage.LevelResource;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,6 +8,20 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import dev.franwdev.lootrteams.LootrTeams;
+import dev.franwdev.lootrteams.config.TeamLootrConfig;
+import dev.franwdev.lootrteams.team.FTBTeamsCompat;
+import dev.franwdev.lootrteams.team.TeamIdentifier;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.Tag;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.storage.LevelResource;
 
 public class LegacyMigrator {
 
@@ -29,6 +32,10 @@ public class LegacyMigrator {
      * Entry point for migration. Should be called during ServerStartedEvent.
      */
     public static void runIfNeeded(MinecraftServer server) {
+        if (!TeamLootrConfig.ENABLE_TEAMS) {
+            LOG.info("[LootrTeams] Team loot is disabled; skipping migration.");
+            return;
+        }
         if (hasMigrated(server)) {
             LOG.info("[LootrTeams] Migration already done, skipping.");
             return;
@@ -72,7 +79,7 @@ public class LegacyMigrator {
             for (Path path : paths.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".dat"))
                     .toList()) {
-                if (migrateFile(path.toFile())) {
+                if (migrateFile(path.toFile(), server)) {
                     count++;
                 }
             }
@@ -82,7 +89,7 @@ public class LegacyMigrator {
         return count;
     }
 
-    private static boolean migrateFile(File file) {
+    private static boolean migrateFile(File file, MinecraftServer server) {
         CompoundTag root;
         try {
             root = NbtIo.readCompressed(file);
@@ -96,7 +103,7 @@ public class LegacyMigrator {
             }
         }
 
-        boolean modified = migrateNbt(root);
+        boolean modified = migrateNbt(root, server);
 
         if (modified) {
             try {
@@ -118,6 +125,10 @@ public class LegacyMigrator {
      * @return true if the NBT was modified, false otherwise.
      */
     public static boolean migrateNbt(CompoundTag root) {
+        return migrateNbt(root, null);
+    }
+
+    private static boolean migrateNbt(CompoundTag root, MinecraftServer server) {
         if (!root.contains("data", Tag.TAG_COMPOUND)) {
             return false;
         }
@@ -133,6 +144,7 @@ public class LegacyMigrator {
 
         Set<UUID> existingUuids = new HashSet<>();
         Set<UUID> derivedGhosts = new HashSet<>();
+        Set<UUID> addedTeams = new HashSet<>();
 
         for (int i = 0; i < inventories.size(); i++) {
             CompoundTag entry = inventories.getCompound(i);
@@ -156,14 +168,26 @@ public class LegacyMigrator {
                 continue;
             }
 
-            UUID ghostTeamUUID = TeamIdentifier.toGhostTeamId(playerUUID);
+            UUID teamUUID = resolveTeamUUID(playerUUID, server);
 
+            if (teamUUID != null && !teamUUID.equals(playerUUID)) {
+                if (!existingUuids.contains(teamUUID) && !addedTeams.contains(teamUUID)) {
+                    CompoundTag newEntry = entry.copy();
+                    newEntry.putUUID("uuid", teamUUID);
+                    toAdd.add(newEntry);
+                    existingUuids.add(teamUUID);
+                    addedTeams.add(teamUUID);
+                    modified = true;
+                }
+                continue;
+            }
+
+            UUID ghostTeamUUID = TeamIdentifier.toGhostTeamId(playerUUID);
             if (!existingUuids.contains(ghostTeamUUID)) {
-                // Clone the original entry and change the UUID key
                 CompoundTag newEntry = entry.copy();
                 newEntry.putUUID("uuid", ghostTeamUUID);
                 toAdd.add(newEntry);
-                existingUuids.add(ghostTeamUUID); // Prevent duplicates if same player exists twice
+                existingUuids.add(ghostTeamUUID);
                 modified = true;
             }
         }
@@ -175,5 +199,15 @@ public class LegacyMigrator {
         }
 
         return modified;
+    }
+
+    private static UUID resolveTeamUUID(UUID playerUUID, MinecraftServer server) {
+        if (server == null) {
+            return null;
+        }
+        if (!TeamLootrConfig.ENABLE_TEAMS || !FTBTeamsCompat.isLoaded()) {
+            return null;
+        }
+        return FTBTeamsCompat.getTeamIdForPlayerId(playerUUID);
     }
 }

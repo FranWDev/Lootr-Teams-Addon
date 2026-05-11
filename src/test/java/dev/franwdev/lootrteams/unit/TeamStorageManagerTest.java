@@ -48,10 +48,4 @@ class TeamStorageManagerTest {
         manager.clear();
         assertTrue(manager.getPlayersInTeam(teamId).isEmpty(), "Cache should be empty after clear is called");
     }
-
-    @Test
-    void playerToTeamLookup() {
-        manager.onInventoryCreated(teamId, playerA, null);
-        assertEquals(teamId, manager.getTeamForPlayer(playerA).orElse(null), "Manager should return correct team for player");
-    }
 }

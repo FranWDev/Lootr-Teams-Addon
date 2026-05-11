@@ -5,7 +5,8 @@
   "refmap": "lootrteams.refmap.json",
   "mixins": [
     "MixinChestData",
-    "AccessorChestData"
+    "AccessorChestData",
+    "AccessorSpecialChestInventory"
   ],
   "client": [],
   "injectors": {

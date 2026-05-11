@@ -1,10 +1,10 @@
 package dev.franwdev.lootrteams.gametest;
  
-import dev.franwdev.lootrteams.team.TeamIdentifier;
- 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import dev.franwdev.lootrteams.team.TeamIdentifier;
  
 public class TeamTestStub {
  

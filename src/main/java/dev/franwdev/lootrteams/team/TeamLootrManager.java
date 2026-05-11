@@ -1,9 +1,9 @@
 package dev.franwdev.lootrteams.team;
 
+import java.util.UUID;
+
 import dev.franwdev.lootrteams.sync.BackgroundSynchronizer;
 import net.minecraft.server.level.ServerPlayer;
-
-import java.util.UUID;
 
 public class TeamLootrManager {
 
@@ -16,6 +16,9 @@ public class TeamLootrManager {
     private TeamLootrManager() {}
 
     public static void init() {
+        if (INSTANCE != null) {
+            return;
+        }
         INSTANCE = new TeamLootrManager();
         INSTANCE.synchronizer.start();
     }
@@ -25,6 +28,7 @@ public class TeamLootrManager {
             synchronizer.stop();
         }
         storageManager.clear();
+        INSTANCE = null;
     }
 
     public UUID getTeamId(ServerPlayer player) {

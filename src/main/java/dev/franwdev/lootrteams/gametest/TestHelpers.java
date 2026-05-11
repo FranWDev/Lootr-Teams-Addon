@@ -1,7 +1,14 @@
 package dev.franwdev.lootrteams.gametest;
  
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import com.mojang.authlib.GameProfile;
+
 import dev.franwdev.lootrteams.mixins.AccessorChestData;
+import dev.franwdev.lootrteams.mixins.AccessorSpecialChestInventory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
@@ -18,22 +25,17 @@ import noobanidus.mods.lootr.data.ChestData;
 import noobanidus.mods.lootr.data.DataStorage;
 import noobanidus.mods.lootr.data.SpecialChestInventory;
  
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
- 
 public class TestHelpers {
  
     public static final BlockPos CHEST_POS = new BlockPos(2, 1, 2);
+    private static SpecialChestInventory lastOpenedInventory = null;
  
     public static void setupChest(GameTestHelper helper, BlockPos pos) {
         Block chestBlock = ForgeRegistries.BLOCKS.getValue(new ResourceLocation("lootr", "chest"));
-        helper.setBlock(pos, chestBlock);
-        BlockEntity be = helper.getBlockEntity(pos);
-        if (be instanceof RandomizableContainerBlockEntity container) {
-            container.setLootTable(new ResourceLocation("minecraft", "chests/simple_dungeon"), helper.getLevel().getRandom().nextLong());
+        if (chestBlock == null) {
+            throw new IllegalStateException("Lootr chest block not found!");
         }
+        helper.setBlock(pos, chestBlock);
     }
  
     /**
@@ -48,16 +50,13 @@ public class TestHelpers {
  
     /**
      * Gets the Lootr ChestData for the chest at CHEST_POS inside the test structure.
+     * Retrieves from the last opened inventory to avoid timing issues with data persistence.
      */
     public static ChestData getChestData(GameTestHelper helper) {
-        ServerLevel level = (ServerLevel) helper.getLevel();
-        BlockPos worldPos = helper.absolutePos(CHEST_POS);
-        BlockEntity be = level.getBlockEntity(worldPos);
-        if (be instanceof ILootBlockEntity lootrBE) {
-            UUID chestUUID = lootrBE.getTileId();
-            return DataStorage.getContainerData(level, worldPos, chestUUID);
+        if (lastOpenedInventory == null) {
+            return null;
         }
-        return null;
+        return ((AccessorSpecialChestInventory) lastOpenedInventory).lootrteams$getChestData();
     }
  
     /**
@@ -90,14 +89,23 @@ public class TestHelpers {
         ServerLevel level = (ServerLevel) helper.getLevel();
         BlockPos worldPos = helper.absolutePos(pos);
         BlockEntity be = level.getBlockEntity(worldPos);
-        if (be instanceof ILootBlockEntity lootrBE && be instanceof RandomizableContainerBlockEntity container) {
-            UUID chestUUID = lootrBE.getTileId();
-            // LootrChestBlockEntity implements LootFiller.unpackLootTable directly
-            LootFiller filler = (fillerPlayer, fillerContainer, fillerTable, fillerSeed) ->
-                lootrBE.unpackLootTable(fillerPlayer, fillerContainer, fillerTable, fillerSeed);
-            return DataStorage.getInventory(level, chestUUID, worldPos, player, container, filler);
+        if (be == null) {
+            return null;
         }
-        return null;
+        if (!(be instanceof ILootBlockEntity lootrBE)) {
+            return null;
+        }
+        if (!(be instanceof RandomizableContainerBlockEntity container)) {
+            return null;
+        }
+        
+        UUID chestUUID = lootrBE.getTileId();
+        // LootrChestBlockEntity implements LootFiller.unpackLootTable directly
+        LootFiller filler = (fillerPlayer, fillerContainer, fillerTable, fillerSeed) ->
+            lootrBE.unpackLootTable(fillerPlayer, fillerContainer, fillerTable, fillerSeed);
+        SpecialChestInventory inventory = DataStorage.getInventory(level, chestUUID, worldPos, player, container, filler);
+        lastOpenedInventory = inventory;
+        return inventory;
     }
  
     public static SpecialChestInventory getInventoryAt(GameTestHelper helper, BlockPos pos, UUID teamId) {
@@ -112,5 +120,13 @@ public class TestHelpers {
             }
         }
         return null;
+    }
+
+    public static boolean clearPlayerInventories(UUID playerId) {
+        return DataStorage.clearInventories(playerId);
+    }
+
+    public static void reset() {
+        lastOpenedInventory = null;
     }
 }

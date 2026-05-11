@@ -1,15 +1,5 @@
 package dev.franwdev.lootrteams.sync;
 
-import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.server.ServerLifecycleHooks;
-import noobanidus.mods.lootr.data.ChestData;
-import noobanidus.mods.lootr.data.SpecialChestInventory;
-import dev.franwdev.lootrteams.team.TeamLootrManager;
-import dev.franwdev.lootrteams.config.TeamLootrConfig;
-import dev.franwdev.lootrteams.mixins.AccessorChestData;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -18,6 +8,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import dev.franwdev.lootrteams.config.TeamLootrConfig;
+import dev.franwdev.lootrteams.mixins.AccessorChestData;
+import dev.franwdev.lootrteams.team.FTBTeamsCompat;
+import dev.franwdev.lootrteams.team.TeamLootrManager;
+import dev.franwdev.lootrteams.team.TeamStorageManager;
+import net.minecraft.server.MinecraftServer;
+import net.minecraftforge.server.ServerLifecycleHooks;
+import noobanidus.mods.lootr.data.ChestData;
+import noobanidus.mods.lootr.data.SpecialChestInventory;
 
 public class BackgroundSynchronizer {
 
@@ -42,12 +45,27 @@ public class BackgroundSynchronizer {
 
     /**
      * Queues a synchronization task so it doesn't block the main thread.
+     * If team members are unknown, attempts to resolve them from FTB Teams.
      */
     public void scheduleSyncToPlayers(ChestData chestData, UUID teamUUID) {
-        if (!TeamLootrConfig.ENABLE_LEGACY_SYNC) return;
+        if (!TeamLootrConfig.ENABLE_TEAMS || !TeamLootrConfig.ENABLE_LEGACY_SYNC) return;
+        if (TeamLootrManager.INSTANCE == null) return;
 
-        Set<UUID> playerIds = TeamLootrManager.INSTANCE
-            .getStorageManager().getPlayersInTeam(teamUUID);
+        TeamStorageManager storageManager = TeamLootrManager.INSTANCE.getStorageManager();
+        Set<UUID> playerIds = storageManager.getPlayersInTeam(teamUUID);
+
+        // Player joined a team after having solo loot
+        // Try to resolve team members from FTB Teams if not cached yet
+        if (playerIds.isEmpty() && FTBTeamsCompat.isLoaded()) {
+            Set<UUID> resolved = FTBTeamsCompat.getTeamMembers(teamUUID);
+            if (!resolved.isEmpty()) {
+                playerIds = resolved;
+                // Update cache for future syncs
+                for (UUID playerId : resolved) {
+                    storageManager.updatePlayerTeam(playerId, teamUUID);
+                }
+            }
+        }
 
         if (playerIds.isEmpty()) return;
 
@@ -76,6 +94,9 @@ public class BackgroundSynchronizer {
 
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
+            TeamStorageManager storageManager = TeamLootrManager.INSTANCE != null
+                ? TeamLootrManager.INSTANCE.getStorageManager()
+                : null;
             // Must write back to the map on the main thread to ensure thread-safety
             server.execute(() -> {
                 for (UUID playerId : task.playerUUIDs) {
@@ -84,6 +105,9 @@ public class BackgroundSynchronizer {
                         ((AccessorChestData) task.chestData).lootrteams$getInventories()
                             .put(playerId, teamInventory);
                         task.chestData.setDirty();
+                        if (storageManager != null) {
+                            storageManager.markPlayerSynced(task.teamUUID, playerId);
+                        }
                     }
                 }
             });

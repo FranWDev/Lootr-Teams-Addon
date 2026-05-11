@@ -2,6 +2,7 @@ package dev.franwdev.lootrteams.setup;
 
 import dev.franwdev.lootrteams.LootrTeams;
 import dev.franwdev.lootrteams.config.TeamLootrConfig;
+import dev.franwdev.lootrteams.team.FTBTeamsCompat;
 import dev.franwdev.lootrteams.team.TeamLootrManager;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -14,7 +15,12 @@ public class CommonSetup {
     public static void init(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
             TeamLootrConfig.bake();
-            TeamLootrManager.init();
+            if (TeamLootrConfig.ENABLE_TEAMS) {
+                TeamLootrManager.init();
+                if (FTBTeamsCompat.isLoaded() && TeamLootrManager.INSTANCE != null) {
+                    FTBTeamsCompat.registerEventHandlers(TeamLootrManager.INSTANCE.getStorageManager());
+                }
+            }
         });
     }
 }

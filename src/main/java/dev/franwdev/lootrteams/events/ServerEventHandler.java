@@ -14,7 +14,7 @@ public class ServerEventHandler {
 
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
-        if (TeamLootrConfig.AUTO_MIGRATE) {
+        if (TeamLootrConfig.ENABLE_TEAMS && TeamLootrConfig.AUTO_MIGRATE) {
             LegacyMigrator.runIfNeeded(event.getServer());
         }
         
@@ -23,6 +23,8 @@ public class ServerEventHandler {
             TeamLootrManager.INSTANCE.getStorageManager().clear();
         }
     }
+
+
 
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {

@@ -1,10 +1,8 @@
 package dev.franwdev.lootrteams.mixins;
 
-import dev.franwdev.lootrteams.team.TeamIdentifier;
-import dev.franwdev.lootrteams.team.TeamLootrManager;
-import net.minecraft.server.level.ServerPlayer;
-import noobanidus.mods.lootr.data.ChestData;
-import noobanidus.mods.lootr.data.SpecialChestInventory;
+import java.util.Map;
+import java.util.UUID;
+
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,8 +10,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.Map;
-import java.util.UUID;
+import dev.franwdev.lootrteams.config.TeamLootrConfig;
+import dev.franwdev.lootrteams.team.TeamLootrManager;
+import net.minecraft.server.level.ServerPlayer;
+import noobanidus.mods.lootr.data.ChestData;
+import noobanidus.mods.lootr.data.SpecialChestInventory;
 
 @Mixin(value = ChestData.class, remap = false)
 public abstract class MixinChestData {
@@ -22,7 +23,7 @@ public abstract class MixinChestData {
     private Map<UUID, SpecialChestInventory> inventories;
 
     /**
-     * Intercepts getInventory to use the team UUID instead of the player UUID.
+     * Intercepts getInventory to return the team's shared inventory instead of the player's private one.
      */
     @Inject(
         method = "getInventory(Lnet/minecraft/server/level/ServerPlayer;)Lnoobanidus/mods/lootr/data/SpecialChestInventory;",
@@ -31,18 +32,11 @@ public abstract class MixinChestData {
         remap = false
     )
     private void teamGetInventory(ServerPlayer player, CallbackInfoReturnable<SpecialChestInventory> cir) {
-        if (TeamLootrManager.INSTANCE == null) return;
-        UUID teamId = TeamLootrManager.INSTANCE.getTeamId(player);
-
-        // LOOTR CLEAR COMPATIBILITY:
-        // If an admin runs `/lootr clear <player>`, Lootr removes the player's UUID from the map.
-        // If they are solo (teamId == ghostId), they would still see their old chest because ghostId was left behind.
-        // We detect this desync and clear the ghost entry so they get fresh loot.
-        UUID ghostId = TeamIdentifier.toGhostTeamId(player.getUUID());
-        if (teamId.equals(ghostId) && !inventories.containsKey(player.getUUID()) && inventories.containsKey(ghostId)) {
-            inventories.remove(ghostId);
+        if (!TeamLootrConfig.ENABLE_TEAMS || TeamLootrManager.INSTANCE == null) {
+            return;
         }
-
+        
+        UUID teamId = TeamLootrManager.INSTANCE.getTeamId(player);
         cir.setReturnValue(inventories.get(teamId));
     }
 
@@ -62,7 +56,7 @@ public abstract class MixinChestData {
                                     Object keyPlayerUUID,
                                     Object value,
                                     ServerPlayer player) {
-        if (TeamLootrManager.INSTANCE == null) {
+        if (!TeamLootrConfig.ENABLE_TEAMS || TeamLootrManager.INSTANCE == null) {
             return map.put((UUID) keyPlayerUUID, (SpecialChestInventory) value);
         }
         
@@ -79,4 +73,5 @@ public abstract class MixinChestData {
             
         return result;
     }
+
 }

@@ -1,9 +1,9 @@
 package dev.franwdev.lootrteams.team;
 
-import net.minecraft.server.level.ServerPlayer;
-
 import java.util.UUID;
 import java.util.function.Function;
+
+import net.minecraft.server.level.ServerPlayer;
 
 public class TeamIdentifier {
 
@@ -15,7 +15,7 @@ public class TeamIdentifier {
      * it returns a ghost team UUID derived deterministically from the player's UUID.
      */
     public UUID getTeamId(ServerPlayer player) {
-        if (TEST_STUB != null) {
+        if (Boolean.getBoolean("lootrteams.testMode") && TEST_STUB != null) {
             return TEST_STUB.apply(player.getUUID());
         }
 

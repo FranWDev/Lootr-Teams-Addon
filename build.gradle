@@ -81,6 +81,7 @@ jar {
             'MixinConfigs'          : 'lootrteams.mixins.json'
         ])
     }
+    exclude 'dev/franwdev/lootrteams/gametest/**'
 }
 
 mixin {
