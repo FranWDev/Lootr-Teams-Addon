@@ -25,7 +25,10 @@ minecraft {
             property 'forge.enabledGameTestNamespaces', 'lootrteams'
             property 'lootrteams.testMode', 'true'
             mods {
-                lootrteams { source sourceSets.main }
+                lootrteams { 
+                    source sourceSets.main 
+                    source sourceSets.test
+                }
             }
         }
     }

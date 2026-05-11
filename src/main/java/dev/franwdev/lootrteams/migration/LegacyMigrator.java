@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
@@ -36,28 +37,36 @@ public class LegacyMigrator {
             LOG.info("[LootrTeams] Team loot is disabled; skipping migration.");
             return;
         }
-        if (hasMigrated(server)) {
-            LOG.info("[LootrTeams] Migration already done, skipping.");
-            return;
+
+        long lastMigrationTime = getLastMigrationTime(server);
+        if (lastMigrationTime > 0) {
+            LOG.info("[LootrTeams] Resuming migration. Last scan: {}", lastMigrationTime);
+        } else {
+            LOG.info("[LootrTeams] Starting fresh legacy migration...");
         }
 
-        LOG.info("[LootrTeams] Starting legacy migration...");
-        int migratedCount = migrate(server);
-        LOG.info("[LootrTeams] Migration complete. Processed {} chest files.", migratedCount);
+        int migratedCount = migrate(server, lastMigrationTime);
+        LOG.info("[LootrTeams] Migration cycle complete. Processed {} chest files.", migratedCount);
 
         setMigrated(server);
     }
 
-    private static boolean hasMigrated(MinecraftServer server) {
+    private static long getLastMigrationTime(MinecraftServer server) {
         Path flagPath = getFlagPath(server);
-        return Files.exists(flagPath);
+        if (!Files.exists(flagPath)) return 0;
+        try {
+            String content = Files.readString(flagPath).trim();
+            return Long.parseLong(content);
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private static void setMigrated(MinecraftServer server) {
         Path flagPath = getFlagPath(server);
         try {
             Files.createDirectories(flagPath.getParent());
-            Files.writeString(flagPath, "1");
+            Files.writeString(flagPath, String.valueOf(System.currentTimeMillis()));
         } catch (IOException e) {
             LOG.error("[LootrTeams] Could not write migration flag!", e);
         }
@@ -67,7 +76,7 @@ public class LegacyMigrator {
         return server.getWorldPath(new LevelResource("data")).resolve(MIGRATION_FLAG_FILE);
     }
 
-    private static int migrate(MinecraftServer server) {
+    private static int migrate(MinecraftServer server, long lastMigrationTime) {
         Path lootrDataPath = server.getWorldPath(new LevelResource("data")).resolve("lootr");
         if (!Files.isDirectory(lootrDataPath)) {
             LOG.info("[LootrTeams] No lootr data directory found. Nothing to migrate.");
@@ -78,6 +87,13 @@ public class LegacyMigrator {
         try (Stream<Path> paths = Files.walk(lootrDataPath)) {
             for (Path path : paths.filter(Files::isRegularFile)
                     .filter(p -> p.toString().endsWith(".dat"))
+                    .filter(p -> {
+                        try {
+                            return Files.getLastModifiedTime(p).toMillis() > lastMigrationTime;
+                        } catch (IOException e) {
+                            return true;
+                        }
+                    })
                     .toList()) {
                 if (migrateFile(path.toFile(), server)) {
                     count++;
@@ -125,10 +141,10 @@ public class LegacyMigrator {
      * @return true if the NBT was modified, false otherwise.
      */
     public static boolean migrateNbt(CompoundTag root) {
-        return migrateNbt(root, null);
+        return migrateNbt(root, uuid -> null);
     }
 
-    private static boolean migrateNbt(CompoundTag root, MinecraftServer server) {
+    public static boolean migrateNbt(CompoundTag root, Function<UUID, UUID> teamResolver) {
         if (!root.contains("data", Tag.TAG_COMPOUND)) {
             return false;
         }
@@ -168,7 +184,7 @@ public class LegacyMigrator {
                 continue;
             }
 
-            UUID teamUUID = resolveTeamUUID(playerUUID, server);
+            UUID teamUUID = teamResolver.apply(playerUUID);
 
             if (teamUUID != null && !teamUUID.equals(playerUUID)) {
                 if (!existingUuids.contains(teamUUID) && !addedTeams.contains(teamUUID)) {
@@ -199,6 +215,10 @@ public class LegacyMigrator {
         }
 
         return modified;
+    }
+
+    private static boolean migrateNbt(CompoundTag root, MinecraftServer server) {
+        return migrateNbt(root, playerUUID -> resolveTeamUUID(playerUUID, server));
     }
 
     private static UUID resolveTeamUUID(UUID playerUUID, MinecraftServer server) {

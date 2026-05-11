@@ -1,5 +1,6 @@
 package dev.franwdev.lootrteams.sync;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -88,23 +89,45 @@ public class BackgroundSynchronizer {
         }
     }
 
-    private void processTask(SyncTask task) {
-        SpecialChestInventory teamInventory = task.chestData.getInventory(task.teamUUID);
+    public void processTaskImmediate(ChestData chestData, UUID teamUUID) {
+        TeamStorageManager storageManager = TeamLootrManager.INSTANCE != null
+            ? TeamLootrManager.INSTANCE.getStorageManager()
+            : null;
+        Set<UUID> playerUUIDs = storageManager != null ? storageManager.getPlayersInTeam(teamUUID) : Collections.emptySet();
+        
+        SpecialChestInventory teamInventory = chestData.getInventory(teamUUID);
         if (teamInventory == null) return;
 
+        for (UUID playerId : playerUUIDs) {
+            // Synchronize the player entry with the team inventory
+            ((AccessorChestData) chestData).lootrteams$getInventories()
+                .put(playerId, teamInventory);
+            chestData.setDirty();
+            if (storageManager != null) {
+                storageManager.markPlayerSynced(teamUUID, playerId);
+            }
+        }
+    }
+
+    private void processTask(SyncTask task) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
-            TeamStorageManager storageManager = TeamLootrManager.INSTANCE != null
-                ? TeamLootrManager.INSTANCE.getStorageManager()
-                : null;
-            // Must write back to the map on the main thread to ensure thread-safety
             server.execute(() -> {
+                SpecialChestInventory teamInventory = task.chestData.getInventory(task.teamUUID);
+                if (teamInventory == null) return;
+
+                TeamStorageManager storageManager = TeamLootrManager.INSTANCE != null
+                    ? TeamLootrManager.INSTANCE.getStorageManager()
+                    : null;
                 for (UUID playerId : task.playerUUIDs) {
                     // Only synchronize if the player does not have their own entry already
                     if (task.chestData.getInventory(playerId) == null) {
                         ((AccessorChestData) task.chestData).lootrteams$getInventories()
                             .put(playerId, teamInventory);
                         task.chestData.setDirty();
+                        if (TeamLootrConfig.DEBUG_MODE) {
+                            LOG.info("[LootrTeams] Synchronized inventory for player {} from team {}", playerId, task.teamUUID);
+                        }
                         if (storageManager != null) {
                             storageManager.markPlayerSynced(task.teamUUID, playerId);
                         }

@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TeamStorageManagerTest {
@@ -47,5 +48,34 @@ class TeamStorageManagerTest {
         manager.onInventoryCreated(teamId, playerA, null);
         manager.clear();
         assertTrue(manager.getPlayersInTeam(teamId).isEmpty(), "Cache should be empty after clear is called");
+    }
+
+    @Test
+    void playerMovesFromTeamAToTeamB() {
+        UUID teamA = UUID.randomUUID();
+        UUID teamB = UUID.randomUUID();
+        UUID player = UUID.randomUUID();
+        
+        manager.onInventoryCreated(teamA, player, null); // player -> teamA
+        manager.updatePlayerTeam(player, teamB);         // player -> teamB
+        
+        assertFalse(manager.getPlayersInTeam(teamA).contains(player), 
+            "Player should no longer be in teamA");
+        assertTrue(manager.getPlayersInTeam(teamB).contains(player), 
+            "Player should now be in teamB");
+    }
+
+    @Test
+    void syncedPlayersRemovedOnTeamChange() {
+        UUID teamA = UUID.randomUUID();
+        UUID teamB = UUID.randomUUID();
+        UUID player = UUID.randomUUID();
+        
+        manager.onInventoryCreated(teamA, player, null);
+        manager.markPlayerSynced(teamA, player);
+        assertTrue(manager.wasPlayerSynced(teamA, player));
+
+        manager.updatePlayerTeam(player, teamB);
+        assertFalse(manager.wasPlayerSynced(teamA, player), "Sync status for teamA should be cleared after moving to teamB");
     }
 }

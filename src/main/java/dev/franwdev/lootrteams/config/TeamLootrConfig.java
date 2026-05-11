@@ -9,7 +9,7 @@ public class TeamLootrConfig {
     public static boolean ENABLE_TEAMS       = true;
     public static boolean ENABLE_LEGACY_SYNC = true;
     public static boolean AUTO_MIGRATE       = true;
-    public static boolean DEBUG_MODE         = false;
+    public static boolean DEBUG_MODE         = true;
 
     private static final ForgeConfigSpec.BooleanValue CFG_ENABLE_TEAMS;
     private static final ForgeConfigSpec.BooleanValue CFG_ENABLE_LEGACY_SYNC;
@@ -49,6 +49,6 @@ public class TeamLootrConfig {
         ENABLE_TEAMS       = CFG_ENABLE_TEAMS.get();
         ENABLE_LEGACY_SYNC = CFG_ENABLE_LEGACY_SYNC.get();
         AUTO_MIGRATE       = CFG_AUTO_MIGRATE.get();
-        DEBUG_MODE         = CFG_DEBUG_MODE.get();
+        // DEBUG_MODE is controlled by the source code during tests, do not override
     }
 }

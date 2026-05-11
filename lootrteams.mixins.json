@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "package": "dev.franwdev.lootrteams.mixins",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "lootrteams.refmap.json",
+  "mixins": [
+    "MixinChestData",
+    "AccessorChestData",
+    "AccessorSpecialChestInventory"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "minVersion": "0.8"
+}

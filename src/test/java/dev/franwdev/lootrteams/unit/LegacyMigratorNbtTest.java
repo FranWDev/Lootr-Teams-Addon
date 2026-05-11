@@ -107,4 +107,29 @@ class LegacyMigratorNbtTest {
 
         assertEquals(sizeAfterFirst, sizeAfterSecond, "Migration must be idempotent");
     }
+
+    @Test
+    void migrationMapsPlayersToTeam() {
+        UUID playerA = UUID.randomUUID();
+        UUID teamUUID = UUID.randomUUID();
+        CompoundTag nbt = buildChestNbt(playerA);
+        
+        // Simulate playerA being in teamUUID
+        boolean modified = LegacyMigrator.migrateNbt(nbt, playerId -> 
+            playerId.equals(playerA) ? teamUUID : null
+        );
+        
+        assertTrue(modified);
+        // There should be an entry for teamUUID, not just ghost
+        ListTag inventories = nbt.getCompound("data").getList("inventories", 10);
+        
+        Set<UUID> uuids = new HashSet<>();
+        for (int i = 0; i < inventories.size(); i++) {
+            uuids.add(inventories.getCompound(i).getUUID("uuid"));
+        }
+        
+        assertTrue(uuids.contains(teamUUID), "Team entry should exist");
+        assertTrue(uuids.contains(playerA), "Original entry should be preserved");
+        // Ghost should not be created if a real team exists (based on current migrateNbt logic)
+    }
 }

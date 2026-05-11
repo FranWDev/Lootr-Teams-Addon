@@ -15,6 +15,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraftforge.common.util.FakePlayer;
@@ -27,15 +28,24 @@ import noobanidus.mods.lootr.data.SpecialChestInventory;
  
 public class TestHelpers {
  
-    public static final BlockPos CHEST_POS = new BlockPos(2, 1, 2);
-    private static SpecialChestInventory lastOpenedInventory = null;
+    public static final BlockPos CHEST_POS = new BlockPos(1, 1, 1);
  
     public static void setupChest(GameTestHelper helper, BlockPos pos) {
-        Block chestBlock = ForgeRegistries.BLOCKS.getValue(new ResourceLocation("lootr", "chest"));
-        if (chestBlock == null) {
-            throw new IllegalStateException("Lootr chest block not found!");
+        ResourceLocation lootrChest = new ResourceLocation("lootr", "chest");
+        Block chestBlock = ForgeRegistries.BLOCKS.getValue(lootrChest);
+        
+        if (chestBlock == null || chestBlock == Blocks.AIR) {
+            System.err.println("[LootrTeamsTest] lootr:chest not found, trying lootr:lootr_chest");
+            chestBlock = ForgeRegistries.BLOCKS.getValue(new ResourceLocation("lootr", "lootr_chest"));
         }
+        
+        if (chestBlock == null || chestBlock == Blocks.AIR) {
+            System.err.println("[LootrTeamsTest] lootr blocks not found, falling back to vanilla chest");
+            chestBlock = Blocks.CHEST;
+        }
+
         helper.setBlock(pos, chestBlock);
+        System.out.println("[LootrTeamsTest] Set block at relative " + pos + " to " + helper.getBlockState(pos) + " (from key: " + ForgeRegistries.BLOCKS.getKey(chestBlock) + ")");
     }
  
     /**
@@ -53,10 +63,16 @@ public class TestHelpers {
      * Retrieves from the last opened inventory to avoid timing issues with data persistence.
      */
     public static ChestData getChestData(GameTestHelper helper) {
-        if (lastOpenedInventory == null) {
-            return null;
+        ServerLevel level = (ServerLevel) helper.getLevel();
+        BlockPos worldPos = helper.absolutePos(CHEST_POS);
+        BlockEntity be = level.getBlockEntity(worldPos);
+        if (be instanceof ILootBlockEntity lootrBE) {
+            UUID chestUUID = lootrBE.getTileId();
+            if (chestUUID != null) {
+                return DataStorage.getContainerData(level, worldPos, chestUUID);
+            }
         }
-        return ((AccessorSpecialChestInventory) lastOpenedInventory).lootrteams$getChestData();
+        return null;
     }
  
     /**
@@ -88,14 +104,25 @@ public class TestHelpers {
     public static SpecialChestInventory openChestAt(GameTestHelper helper, ServerPlayer player, BlockPos pos) {
         ServerLevel level = (ServerLevel) helper.getLevel();
         BlockPos worldPos = helper.absolutePos(pos);
-        BlockEntity be = level.getBlockEntity(worldPos);
+        
+        // Use helper methods which are safer in GameTest context
+        BlockEntity be = helper.getBlockEntity(pos);
         if (be == null) {
+            // Try forcing a tick update if not present
+            helper.setBlock(pos, helper.getBlockState(pos));
+            be = helper.getBlockEntity(pos);
+        }
+
+        if (be == null) {
+            System.err.println("[LootrTeamsTest] BlockEntity at relative " + pos + " (absolute " + worldPos + ") is NULL! Block is: " + helper.getBlockState(pos));
             return null;
         }
         if (!(be instanceof ILootBlockEntity lootrBE)) {
+            System.err.println("[LootrTeamsTest] BlockEntity at relative " + pos + " is not an ILootBlockEntity! Class: " + be.getClass().getName());
             return null;
         }
         if (!(be instanceof RandomizableContainerBlockEntity container)) {
+            System.err.println("[LootrTeamsTest] BlockEntity at relative " + pos + " is not a RandomizableContainerBlockEntity! Class: " + be.getClass().getName());
             return null;
         }
         
@@ -104,7 +131,6 @@ public class TestHelpers {
         LootFiller filler = (fillerPlayer, fillerContainer, fillerTable, fillerSeed) ->
             lootrBE.unpackLootTable(fillerPlayer, fillerContainer, fillerTable, fillerSeed);
         SpecialChestInventory inventory = DataStorage.getInventory(level, chestUUID, worldPos, player, container, filler);
-        lastOpenedInventory = inventory;
         return inventory;
     }
  
@@ -122,11 +148,15 @@ public class TestHelpers {
         return null;
     }
 
-    public static boolean clearPlayerInventories(UUID playerId) {
-        return DataStorage.clearInventories(playerId);
+    public static boolean clearPlayerInventories(GameTestHelper helper, UUID playerId) {
+        ChestData data = getChestData(helper);
+        if (data != null) {
+            return data.clearInventory(playerId);
+        }
+        return false;
     }
 
     public static void reset() {
-        lastOpenedInventory = null;
+        // No static state to reset
     }
 }

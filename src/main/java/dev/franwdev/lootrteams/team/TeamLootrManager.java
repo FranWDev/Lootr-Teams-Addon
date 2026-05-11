@@ -35,6 +35,10 @@ public class TeamLootrManager {
         return teamIdentifier.getTeamId(player);
     }
 
+    public UUID getTeamId(UUID playerId) {
+        return teamIdentifier.getTeamId(playerId);
+    }
+
     public TeamStorageManager getStorageManager() {
         return storageManager;
     }

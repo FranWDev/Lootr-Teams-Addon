@@ -32,11 +32,11 @@ public class FTBTeamsCompat {
             Object team = getTeamForPlayer(player);
             if (team == null) return null;
 
-            UUID teamId = readTeamId(team);
-            if (teamId == null || teamId.equals(player.getUUID())) {
+            if (!(boolean) team.getClass().getMethod("isPartyTeam").invoke(team)) {
                 return null;
             }
-            return teamId;
+
+            return readTeamId(team);
         } catch (Throwable e) {
             LOG.debug("[LootrTeams] Failed to resolve team ID", e);
             return null;
@@ -53,11 +53,11 @@ public class FTBTeamsCompat {
             Object team = getTeamForPlayerId(playerId);
             if (team == null) return null;
 
-            UUID teamId = readTeamId(team);
-            if (teamId == null || teamId.equals(playerId)) {
+            if (!(boolean) team.getClass().getMethod("isPartyTeam").invoke(team)) {
                 return null;
             }
-            return teamId;
+
+            return readTeamId(team);
         } catch (Throwable e) {
             LOG.debug("[LootrTeams] Failed to resolve team ID for player UUID", e);
             return null;
@@ -74,7 +74,14 @@ public class FTBTeamsCompat {
             Object team = getTeamById(teamId);
             if (team == null) return Collections.emptySet();
 
-            Method getMembers = team.getClass().getMethod("getMembers");
+            Method getMembers;
+            try {
+                getMembers = team.getClass().getMethod("getMembers");
+            } catch (NoSuchMethodException e) {
+                LOG.warn("[LootrTeams] FTB Teams Team.getMembers() not found - sync disabled. Check FTB Teams version.");
+                return Collections.emptySet();
+            }
+
             @SuppressWarnings("unchecked")
             Set<UUID> members = (Set<UUID>) getMembers.invoke(team);
             return members != null ? members : Collections.emptySet();
@@ -99,7 +106,9 @@ public class FTBTeamsCompat {
             registerTeamEvent("dev.ftb.mods.ftbteams.api.event.TeamManagerEvent", "LOADED",
                 event -> handleTeamManager(event, storageManager));
 
-            LOG.info("[LootrTeams] Registered FTB Teams event handlers.");
+            if (dev.franwdev.lootrteams.config.TeamLootrConfig.DEBUG_MODE) {
+                LOG.info("[LootrTeams] Registered FTB Teams event handlers.");
+            }
         } catch (Throwable e) {
             LOG.debug("[LootrTeams] Failed to register FTB Teams event handlers", e);
         }
@@ -175,8 +184,18 @@ public class FTBTeamsCompat {
 
     private static void handlePlayerLeft(Object event, TeamStorageManager storageManager) {
         try {
-            Object team = event.getClass().getMethod("getTeam").invoke(event);
-            if (team == null) return;
+            UUID playerId = null;
+            try {
+                playerId = (UUID) event.getClass().getMethod("getPlayerId").invoke(event);
+            } catch (NoSuchMethodException e) {
+                Object player = event.getClass().getMethod("getPlayer").invoke(event);
+                if (player != null) {
+                    playerId = (UUID) player.getClass().getMethod("getUUID").invoke(player);
+                }
+            }
+            if (playerId == null) return;
+            UUID ghostId = TeamIdentifier.toGhostTeamId(playerId);
+            storageManager.updatePlayerTeam(playerId, ghostId);
         } catch (Throwable e) {
             LOG.debug("[LootrTeams] Failed to handle player left event", e);
         }

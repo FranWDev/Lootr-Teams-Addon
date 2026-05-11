@@ -58,6 +58,10 @@ public class TeamStorageManager {
         return syncedPlayers.getOrDefault(teamId, Collections.emptySet()).contains(playerId);
     }
 
+    public UUID getTeamForPlayer(UUID playerId) {
+        return playerToTeam.get(playerId);
+    }
+
     /** Clears the cache (should be called on server stop or world reload). */
     public void clear() {
         teamMembers.clear();
